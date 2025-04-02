@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Online Availability Days Calendar{% endblock %}</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    <script src="https://unpkg.com/htmx.org/dist/ext/remove-me.js"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Custom Styles -->
+    <style>
+        body {
+            background-color: rgb(15 23 42);
+            color: rgb(226 232 240);
+        }
+        
+        /* Scrollbar-Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.5);
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.7);
+        }
+        
+        /* Animation für das Modal */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .modal-animation {
+            animation: fadeIn 0.3s, slideIn 0.3s;
+        }
+    </style>
+
+    {% block head %}{% endblock %}
+</head>
+<body x-data class="min-h-screen bg-slate-900" hx-ext="remove-me">
+    <div id="notification-container" class="fixed top-20 right-4 z-[100]"></div>
+    <div id="modal-container" class="fixed inset-0 z-[200] flex items-center justify-center hidden"></div>
+    
+    <script>
+        // Funktion zum Aktualisieren der Tageszeitindikatoren
+        function updateDayIndicators(dateValue) {
+            const indicatorsUrl = '{{ url_for("update_day_indicators") }}';
+            const dateParam = new URLSearchParams();
+            dateParam.append('date', dateValue);
+            
+            fetch(indicatorsUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'HX-Request': 'true'
+                },
+                body: dateParam
+            })
+            .then(indResponse => indResponse.text())
+            .then(indHtml => {
+                console.log('Indicators response received, length:', indHtml.length);
+                const indTarget = document.querySelector(`#day-indicators-${dateValue}`);
+                if (indTarget) {
+                    console.log(`Found target #day-indicators-${dateValue}`);
+                    indTarget.innerHTML = indHtml;
+                    console.log('Updated day indicators, new content:', indHtml.trim());
+                } else {
+                    console.error('Day indicators target not found:', `#day-indicators-${dateValue}`);
+                    // Liste alle day-indicators-Elemente auf
+                    const allIndicators = document.querySelectorAll('[id^="day-indicators-"]');
+                    console.log('All indicator elements:', allIndicators.length);
+                    allIndicators.forEach(ind => console.log('  -', ind.id));
+                }
+            })
+            .catch(err => console.error('Error updating indicators:', err));
+        }
+        
+        // Manuelle POST-Anfrage für Buttons
+        function manualPostRequest(button) {
+            // Verhindere das Standard-HTMX-Verhalten
+            event.preventDefault();
+            event.stopPropagation();
+            
+            console.log('Manual POST request for button', button);
+            
+            // Hole Attribute entweder über hx- oder data-hx- Präfix
+            const postUrl = button.getAttribute('hx-post') || button.getAttribute('data-hx-post');
+            const valsStr = button.getAttribute('hx-vals') || button.getAttribute('data-hx-vals');
+            const target = button.getAttribute('hx-target') || button.getAttribute('data-hx-target');
+            const swap = button.getAttribute('hx-swap') || button.getAttribute('data-hx-swap');
+            const dateStr = button.getAttribute('data-date');
+            
+            if (!postUrl) {
+                console.error('No URL found for button');
+                return;
+            }
+            
+            // Parse vals
+            let valuesObj = {};
+            try {
+                if (valsStr) {
+                    // Ersetze einfache Anführungszeichen durch doppelte
+                    valuesObj = JSON.parse(valsStr.replace(/'/g, '"'));
+                }
+            } catch (err) {
+                console.error('Error parsing vals:', valsStr, err);
+            }
+            console.log('Request URL:', postUrl);
+            console.log('Parsed values:', valuesObj);
+            
+            // Sende die Anfrage
+            fetch(postUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'HX-Request': 'true',
+                    'HX-Trigger': button.id || 'unknown',
+                    'HX-Target': target || '',
+                    'HX-Current-URL': window.location.href
+                },
+                body: new URLSearchParams(valuesObj)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.text();
+            })
+            .then(html => {
+                console.log('Response received, length:', html.length);
+                console.log('Response preview:', html.slice(0, 100) + '...');
+                
+                // Finde das Zielelement
+                let targetElem = null;
+                if (target) {
+                    targetElem = document.querySelector(target);
+                    console.log('Target element found:', targetElem);
+                } else {
+                    console.warn('No target selector provided');
+                }
+                if (targetElem) {
+                    if (swap === 'outerHTML') {
+                        // Ersetze das gesamte Element
+                        targetElem.outerHTML = html;
+                        console.log('Replaced outerHTML success');
+                    } else {
+                        // Ersetze nur den Inhalt
+                        targetElem.innerHTML = html;
+                        console.log('Replaced innerHTML success');
+                    }
+                    
+                    // WICHTIG: Aktualisiere die Tagesindikatoren in jedem Fall
+                    // Zuerst versuche den Datumswert aus den valuesObj zu holen
+                    let dateValue = valuesObj.date || dateStr;
+                    if (dateValue) {
+                        console.log('Updating indicators for date:', dateValue);
+                        updateDayIndicators(dateValue);
+                    } else {
+                        console.warn('No date available for indicator update');
+                    }
+                } else {
+                    console.error('Target element not found:', target);
+                    // Trotzdem die Indikatoren aktualisieren, wenn ein Datum verfügbar ist
+                    let dateValue = valuesObj.date || dateStr;
+                    if (dateValue) {
+                        console.log('Still updating indicators for date despite missing target:', dateValue);
+                        updateDayIndicators(dateValue);
+                    }
+                }
+            })
+            .catch(err => console.error('Error in manual fetch:', err));
+        }
+        
+        // Initialisiere HTMX Logging
+        document.body.addEventListener('htmx:configRequest', function(evt) {
+            console.log('HTMX request config:', evt.detail);
+        });
+        
+        document.body.addEventListener('htmx:beforeRequest', function(evt) {
+            console.log('HTMX before request:', {
+                url: evt.detail.requestConfig.url,
+                path: evt.detail.pathInfo ? evt.detail.pathInfo.requestPath : '',
+                parameters: evt.detail.requestConfig.parameters
+            });
+        });
+        
+        document.body.addEventListener('htmx:beforeSend', function(evt) {
+            console.log('HTMX before send:', evt.detail);
+        });
+        
+        document.body.addEventListener('htmx:afterRequest', function(evt) {
+            console.log('HTMX after request:', evt.detail);
+        });
+        
+        document.body.addEventListener('htmx:responseError', function(evt) {
+            console.error('HTMX response error:', evt.detail);
+        });
+        
+        document.body.addEventListener('htmx:sendError', function(evt) {
+            console.error('HTMX send error:', evt.detail);
+        });
+        
+        // Funktion, um HTMX im Modalen Inhalt zu verarbeiten
+        function processModal() {
+            console.log('Processing modal content');
+            
+            // Gib die komplette DOM-Struktur des Modals aus
+            const modalContainer = document.getElementById('modal-container');
+            const modalHtml = modalContainer.innerHTML.trim();
+            console.log('Modal container structure:', modalHtml);
+            
+            // Prüfe, ob der Container leer oder versteckt ist
+            if (!modalHtml || modalHtml === '' || modalContainer.classList.contains('hidden')) {
+                console.log('Modal ist leer oder versteckt, keine Verarbeitung notwendig.');
+                return;
+            }
+            
+            // Verschiedene Selektor-Strategien versuchen
+            let modalContent = document.querySelector('.p-4.max-w-md.w-full');
+            if (!modalContent) {
+                modalContent = modalContainer.querySelector('div > div'); // Alternative 1
+                if (!modalContent) {
+                    modalContent = modalContainer.querySelector('div'); // Alternative 2
+                    if (!modalContent) {
+                        // Letzte Chance: alle Elemente mit hx-post suchen
+                        console.log('Fallback: Suche nach Buttons im gesamten Modal-Container');
+                        const allButtons = modalContainer.querySelectorAll('button[hx-post]');
+                        if (allButtons.length > 0) {
+                            console.log('Found buttons with direct selector:', allButtons.length);
+                            processButtons(allButtons);
+                            return;
+                        } else {
+                            console.error('Keine Buttons gefunden. DOM-Struktur:', modalContainer.innerHTML);
+                            return;
+                        }
+                    }
+                }
+            }
+            
+            console.log('Modal content found:', modalContent);
+            htmx.process(modalContent);
+            
+            // Suche nach Buttons im gefundenen Modal-Content
+            const buttons = modalContent ? modalContent.querySelectorAll('button[hx-post], button[data-hx-post]') : [];
+            console.log('Found buttons:', buttons.length);
+            processButtons(buttons);
+        }
+        
+        // Separate Funktion für die Verarbeitung von Buttons
+        function processButtons(buttons) {
+            if (!buttons || buttons.length === 0) {
+                console.log('Keine Buttons zum Verarbeiten gefunden.');
+                return;
+            }
+            
+            buttons.forEach((button, index) => {
+                console.log(`Button ${index}:`, button.outerHTML);
+                const postUrl = button.getAttribute('hx-post');
+                const vals = button.getAttribute('hx-vals');
+                const target = button.getAttribute('hx-target');
+                const swap = button.getAttribute('hx-swap');
+                
+                // Entferne bestehende Event-Listener
+                const newButton = button.cloneNode(true);
+                button.parentNode.replaceChild(newButton, button);
+                
+                // Füge neuen Event-Listener hinzu
+                newButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log(`Manual button click on button ${index}`);
+                    
+                    // Parse vals
+                    let valuesObj = {};
+                    try {
+                        if (vals) {
+                            valuesObj = JSON.parse(vals.replace(/'/g, '"'));
+                        }
+                    } catch (err) {
+                        console.error('Error parsing vals:', vals, err);
+                    }
+                    console.log('Parsed values:', valuesObj);
+                    
+                    // Manueller AJAX-Request
+                    fetch(postUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'HX-Request': 'true',
+                            'HX-Trigger': button.id || 'unknown',
+                            'HX-Target': target || '',
+                            'HX-Current-URL': window.location.href
+                        },
+                        body: new URLSearchParams(valuesObj)
+                    })
+                    .then(response => response.text())
+                    .then(html => {
+                        console.log('Received HTML response:', html);
+                        const targetElem = document.querySelector(target);
+                        if (targetElem) {
+                            if (swap === 'outerHTML') {
+                                targetElem.outerHTML = html;
+                            } else {
+                                targetElem.innerHTML = html;
+                            }
+                            
+                            // Verarbeite HTMX in der Antwort
+                            const parent = targetElem.parentNode;
+                            if (parent) {
+                                htmx.process(parent);
+                                processModal(); // Rekursiver Aufruf für neue Buttons
+                            }
+                            console.log('Processed response HTML');
+                        } else {
+                            console.error('Target element not found:', target);
+                        }
+                    })
+                    .catch(err => console.error('Error in manual fetch:', err));
+                });
+            });
+        }
+        
+        // Funktion, um Timer zu verwenden und auf Alpine.js Rendering zu warten
+        function initModal() {
+            setTimeout(processModal, 100);
+        }
+        
+        document.addEventListener('alpine:init', () => {
+            Alpine.store('viewMode', {
+                compact: false,
+                calendarUrl: "{{ url_for('get_calendar_content') }}",
+                toggle() {
+                    this.compact = !this.compact;
+                    console.log('Toggle clicked, compact:', this.compact);
+                    console.log('Using URL:', this.calendarUrl);
+                    // HTMX-Request mit direktem Parameter
+                    htmx.ajax('GET', this.calendarUrl + '?compact=' + (this.compact ? '1' : '0'), {
+                        target: '#calendar-container',
+                        swap: 'innerHTML'
+                    });
+                }
+            });
+            
+            Alpine.store('modal', {
+                isOpen: false,
+                content: '',
+                
+                open(content) {
+                    this.content = content;
+                    this.isOpen = true;
+                    document.getElementById('modal-container').classList.remove('hidden');
+                    document.body.classList.add('overflow-hidden');
+                    
+                    // Verarbeite HTMX nach dem Öffnen des Modals
+                    initModal();
+                },
+                
+                close() {
+                    this.isOpen = false;
+                    this.content = '';
+                    document.getElementById('modal-container').classList.add('hidden');
+                    document.body.classList.remove('overflow-hidden');
+                }
+            });
+        });
+        
+        // Funktion zum Öffnen eines Modals mit HTMX-Inhalten
+        function openModalWithHtmx(url, formData) {
+            // Modal-Container leeren und anzeigen
+            const modalContainer = document.getElementById('modal-container');
+            
+            // Request an den Server senden
+            fetch(url, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(html => {
+                try {
+                    // Versuche zuerst, den Alpine.js Store zu verwenden
+                    if (typeof Alpine !== 'undefined' && Alpine.store('modal')) {
+                        Alpine.store('modal').open(html);
+                    } else {
+                        // Fallback: Hole das erste Modal-Element und setze seine Eigenschaften direkt
+                        const modalElement = document.querySelector('[x-data]');
+                        if (modalElement && modalElement.__x) {
+                            modalElement.__x.setData({ modalOpen: true, modalContent: html });
+                        } else {
+                            console.error('Kein Alpine.js-Element für das Modal gefunden');
+                            // Notfall-Fallback: Manuelles Öffnen
+                            modalContainer.querySelector('div > div > div').innerHTML = html;
+                            modalContainer.classList.remove('hidden');
+                        }
+                    }
+                    // HTMX-Elemente verarbeiten
+                    initModal();
+                } catch (error) {
+                    console.error('Fehler beim Öffnen des Modals:', error);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading modal content:', error);
+                const errorHtml = `
+                    <div class="bg-red-100 border-red-400 text-red-700 border px-4 py-3 rounded shadow-md" role="alert">
+                        <p>Fehler beim Laden des Inhalts: ${error.message}</p>
+                    </div>
+                `;
+                
+                try {
+                    // Versuche zuerst, den Alpine.js Store zu verwenden
+                    if (typeof Alpine !== 'undefined' && Alpine.store('modal')) {
+                        Alpine.store('modal').open(errorHtml);
+                    } else {
+                        // Fallback
+                        const modalElement = document.querySelector('[x-data]');
+                        if (modalElement && modalElement.__x) {
+                            modalElement.__x.setData({ modalOpen: true, modalContent: errorHtml });
+                        }
+                    }
+                } catch (e) {
+                    console.error('Fehler beim Anzeigen der Fehlermeldung:', e);
+                }
+            });
+        }
+        
+        // Funktion zum Schließen des Modals
+        function closeModal() {
+            try {
+                // Den Modal-Container leeren, um weitere Verarbeitungen zu vermeiden
+                const modalContainer = document.getElementById('modal-container');
+                if (modalContainer) {
+                    // Speichere den Inhalt vor dem Leeren, um ihn in die Console zu schreiben
+                    const oldContent = modalContainer.innerHTML;
+                    if (oldContent && oldContent.trim() !== '') {
+                        console.log('Schließe Modal und leere Inhalt.');
+                    }
+                    // Leere den Container
+                    modalContainer.innerHTML = '';
+                    modalContainer.classList.add('hidden');
+                }
+                
+                // Versuche zuerst, den Alpine.js Store zu verwenden
+                if (typeof Alpine !== 'undefined' && Alpine.store('modal')) {
+                    Alpine.store('modal').close();
+                } else {
+                    // Fallback
+                    const modalElement = document.querySelector('[x-data]');
+                    if (modalElement && modalElement.__x) {
+                        modalElement.__x.setData({ modalOpen: false, modalContent: '' });
+                    }
+                }
+            } catch (error) {
+                console.error('Fehler beim Schließen des Modals:', error);
+                // Notfall-Fallback
+                document.getElementById('modal-container').classList.add('hidden');
+            }
+        }
+        
+        // Event-Listener für ESC-Taste zum Schließen des Modals
+        document.addEventListener('keydown', function(e) {
+            const modalIsOpen = document.querySelector('[x-data]')?.__x?.getUnobservedData?.()?.modalOpen;
+            const storeIsOpen = typeof Alpine !== 'undefined' && Alpine.store('modal')?.isOpen;
+            
+            if (e.key === 'Escape' && (modalIsOpen || storeIsOpen)) {
+                closeModal();
+            }
+        });
+    </script>
+    
+    <!-- Modal-Hintergrund mit click-away zum Schließen -->
+    <div x-data="{ modalOpen: false, modalContent: '' }" 
+         x-init="$watch('modalOpen', value => { if (value) { document.body.classList.add('overflow-hidden'); } else { document.body.classList.remove('overflow-hidden'); } })" 
+         x-show="modalOpen || $store?.modal?.isOpen" 
+         class="fixed inset-0 z-[200] bg-black bg-opacity-50 flex items-center justify-center"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @click.self="modalOpen ? modalOpen = false : (typeof closeModal === 'function' && closeModal())">
+        
+        <!-- Modal-Inhalt -->
+        <div class="bg-slate-800 rounded-lg shadow-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto modal-animation relative"
+             @click.outside="modalOpen ? modalOpen = false : (typeof closeModal === 'function' && closeModal())">
+             <div x-html="modalContent || ($store?.modal?.content || '')"></div>
+        </div>
+    </div>
+    
+    {% block content %}{% endblock %}
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

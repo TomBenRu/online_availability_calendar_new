@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Navigation Bar -->
+<nav class="bg-slate-800/95 backdrop-blur-sm border-b border-slate-700/50 fixed top-0 w-full z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16" id="menu-content">
+        </div>
+    </div>
+</nav>
+
+<div class="max-w-4xl ml-0">
+    <h1 class="text-2xl font-bold mb-4"></h1>
+    <!-- Container für die Notizen - außerhalb des Scroll-Bereichs -->
+    <div id="notes-container" class="fixed z-40"></div>
+    <div id="calendar-complete">
+        {% include 'login_modal.html' %}
+    </div>
+</div>
+{% endblock %}

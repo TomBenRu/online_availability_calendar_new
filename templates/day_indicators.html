@@ -1,0 +1,6 @@
+{% if selected_tods %}
+    {% for tod in selected_tods %}
+        {% set tod_color = tod.color|default('gray-500') %}
+        <span class="text-{{ tod_color }} inline-block rounded-full w-2 h-2 bg-{{ tod_color }}" title="{{ tod.name }}"></span>
+    {% endfor %}
+{% endif %}

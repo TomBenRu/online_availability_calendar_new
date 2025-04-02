@@ -1,0 +1,224 @@
+<!-- Main Content -->
+<div class="min-h-screen"
+     hx-get="{{ url_for('get_calendar_menus') }}"
+     hx-trigger="load"
+     hx-target="#menu-content"
+     hx-swap="innerHTML">
+
+    <!-- Hauptinhalt -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20">
+        <div class="w-screen overflow-x-auto max-w-[1300px]" id="calendar-container">
+            {% include 'calendar_container.html' %}
+        </div>
+    </div>
+</div>
+
+<script>
+    // HTMX Timeout-Konfiguration
+    htmx.config.timeout = 5000; // 5 Sekunden Timeout für alle HTMX-Requests
+
+    // Debounce Funktion für Scroll-Events
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    // Funktion zum Laden der ersten Periode
+    function loadFirstPeriod() {
+        console.log("Loading first period...");
+        // Debug: Prüfe DOM-Struktur
+        console.log("DOM Structure:", document.documentElement.innerHTML);
+        console.log("Notes container exists:", document.getElementById('notes-container'));
+        
+        // Warte auf Alpine.js Initialisierung
+        setTimeout(() => {
+            // Finde das erste Perioden-Element
+            const periodElements = document.querySelectorAll('.period-container');
+            console.log("Found period elements:", periodElements.length);
+            if (periodElements.length > 0) {
+                const firstPeriod = periodElements[0];
+                const period = firstPeriod.dataset.period;
+                const color = firstPeriod.dataset.color;
+                
+                console.log("First period:", period);
+                console.log("Color:", color);
+                
+                if (!period) {
+                    console.error('Period data attribute not found');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('period', period);
+                formData.append('color', color);
+                
+                fetch('{{ url_for('load_period_notes') }}', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.text())
+                .then(html => {
+                    console.log("Received HTML:", html);
+                    const notesContainer = document.getElementById('notes-container');
+                    console.log("Notes container:", notesContainer);
+                    if (notesContainer) {
+                        notesContainer.innerHTML = html;
+                        htmx.process(notesContainer);
+                        console.log("Notes container after update:", notesContainer.innerHTML);
+                    }
+                })
+                .catch(error => console.error('Error loading notes:', error));
+            } else {
+                console.error('No period elements found');
+            }
+        }, 100); // Warte 100ms auf Alpine.js
+    }
+
+    let lastLoadedPeriod = null;
+    let isLoading = false;
+
+    // Funktion zum Laden der Periode beim Scrollen
+    const loadPeriodNotes = debounce(() => {
+        console.log("Loading period notes on scroll...");
+        const containers = document.querySelectorAll('.period-container');
+        console.log("Found containers:", containers.length);
+        let maxVisibility = 0;
+        let mostVisiblePeriod = null;
+        let mostVisibleColor = null;
+
+        containers.forEach(container => {
+            const rect = container.getBoundingClientRect();
+            const windowHeight = window.innerHeight;
+            const visibleHeight = Math.min(rect.bottom, windowHeight) - Math.max(rect.top, 0);
+            const visibility = visibleHeight / container.offsetHeight;
+
+            if (visibility > maxVisibility && visibility > 0.3) {
+                maxVisibility = visibility;
+                mostVisiblePeriod = container.dataset.period;
+                mostVisibleColor = container.dataset.color;
+            }
+        });
+
+        console.log("Most visible period:", mostVisiblePeriod);
+        console.log("Last loaded period:", lastLoadedPeriod);
+
+        if (mostVisiblePeriod && mostVisiblePeriod !== lastLoadedPeriod) {
+            lastLoadedPeriod = mostVisiblePeriod;
+            
+            const formData = new FormData();
+            formData.append('period', mostVisiblePeriod);
+            formData.append('color', mostVisibleColor);
+            
+            fetch('{{ url_for('load_period_notes') }}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(html => {
+                console.log("Received HTML:", html);
+                const notesContainer = document.getElementById('notes-container');
+                console.log("Notes container:", notesContainer);
+                if (notesContainer) {
+                    notesContainer.innerHTML = html;
+                    htmx.process(notesContainer);
+                    console.log("Notes container after update:", notesContainer.innerHTML);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    }, 200);
+
+    // Event Listener
+    window.addEventListener('scroll', loadPeriodNotes);
+    window.addEventListener('resize', loadPeriodNotes);
+
+    // Initial load
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadFirstPeriod);
+    } else {
+        loadFirstPeriod();
+    }
+
+    // Globaler HTMX-Fehlerhandler
+    document.body.addEventListener('htmx:error', function(evt) {
+        const notificationContainer = document.getElementById('notification-container');
+        if (notificationContainer) {
+            // Prüfe Online-Status
+            let errorMessage = navigator.onLine 
+                ? "Der Server ist nicht erreichbar - Bitte versuchen Sie es später erneut"
+                : "Keine Internetverbindung - Bitte überprüfen Sie Ihre Verbindung";
+
+            notificationContainer.innerHTML = `
+                <div class="fixed top-4 right-4 bg-red-100 border-red-400 text-red-700 border px-4 py-3 rounded shadow-md z-[100]" 
+                     role="alert"
+                     remove-me="5s">
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="block sm:inline">
+                            ${errorMessage}
+                        </span>
+                    </div>
+                </div>`;
+
+            // Finde alle Elemente mit remove-me Attribut
+            const removeElements = notificationContainer.querySelectorAll('[remove-me]');
+            removeElements.forEach(element => {
+                const duration = element.getAttribute('remove-me');
+                const seconds = parseInt(duration);
+                if (!isNaN(seconds)) {
+                    setTimeout(() => {
+                        if (element && element.parentNode) {
+                            element.remove();
+                        }
+                    }, seconds * 1000);
+                }
+            });
+        }
+    });
+
+    // Aktualisiere die Fehlermeldung bei Änderung des Online-Status
+    window.addEventListener('online', function() {
+        console.log('Online status changed: online');
+    });
+    window.addEventListener('offline', function() {
+        const notificationContainer = document.getElementById('notification-container');
+        if (notificationContainer) {
+            notificationContainer.innerHTML = `
+                <div class="fixed top-4 right-4 bg-red-100 border-red-400 text-red-700 border px-4 py-3 rounded shadow-md z-[100]" 
+                     role="alert"
+                     remove-me="5s">
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="block sm:inline">
+                            Keine Internetverbindung - Bitte überprüfen Sie Ihre Verbindung
+                        </span>
+                    </div>
+                </div>`;
+
+            // Finde alle Elemente mit remove-me Attribut
+            const removeElements = notificationContainer.querySelectorAll('[remove-me]');
+            removeElements.forEach(element => {
+                const duration = element.getAttribute('remove-me');
+                const seconds = parseInt(duration);
+                if (!isNaN(seconds)) {
+                    setTimeout(() => {
+                        if (element && element.parentNode) {
+                            element.remove();
+                        }
+                    }, seconds * 1000);
+                }
+            });
+        }
+    });
+</script>

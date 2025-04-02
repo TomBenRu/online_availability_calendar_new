@@ -1,0 +1,14 @@
+[project]
+name = "online-availability-calendar"
+version = "0.1.0"
+description = "Online calendar for managing availability"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "jinja2",
+    "python-multipart",
+    "requests",
+    "pony",
+    "itsdangerous",
+]
