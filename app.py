@@ -18,7 +18,7 @@ from models import entities
 from config.database import create_test_data
 from utils.db_helpers import (
     get_plan_periods, get_time_of_day_options, get_selected_times,
-    get_user_notes, save_note, toggle_availability, validate_login
+    get_user_notes, save_note, toggle_availability, validate_login, get_time_of_day
 )
 
 # Lifespan-Kontext-Manager für Anwendungsstart und -ende
@@ -566,22 +566,11 @@ async def select_time_of_day(request: Request):
         
         # Verfügbarkeit in der Datenbank umschalten
         try:
-            # Verwende jetzt immer die normale toggle_availability Funktion
-            print(f"Verwende normales toggle für {date_str}")
-            is_checked, success = toggle_availability(user["id"], date_str, tod_id)
-            
-            if not success:
-                return templates.TemplateResponse(
-                    "notification_error.html",
-                    {
-                        "request": request,
-                        "message": f"Fehler beim Umschalten der Verfügbarkeit: Datum oder Tageszeit konnte nicht verarbeitet werden."
-                    }
-                )
+            availability = toggle_availability(user["id"], date_str, tod_id)
         except Exception as e:
             # Detaillierte Fehlermeldung an den Client zurückgeben
             error_message = str(e)
-            print(f"Detaillierter Fehler in select_time_of_day: {error_message}")
+            print(f"Fehler beim Umschalten der Verfügbarkeit: {error_message}")
             return templates.TemplateResponse(
                 "notification_error.html",
                 {
@@ -589,35 +578,14 @@ async def select_time_of_day(request: Request):
                     "message": f"Fehler beim Umschalten der Verfügbarkeit: {error_message}"
                 }
             )
-        
-        # Hole Tageszeit-Daten
-        time_options = get_time_of_day_options(user["id"])
-        
-        # Finden der TOD nach ID
-        matching_tods = [tod for tod in time_options if tod['id'] == tod_id]
-        
-        if not matching_tods:
-            return templates.TemplateResponse(
-                "notification_error.html",
-                {
-                    "request": request,
-                    "message": "Ungültige Tageszeit-ID: Keine passende Zeit gefunden"
-                }
-            )
-            
-        tod = matching_tods[0]
-        print(f"Tageszeit {tod['name']} ({tod['id']}) ist nun {is_checked and 'aktiviert' or 'deaktiviert'}")
+
+        tod = get_time_of_day(tod_id)
             
         curr_notification_colors = {
-            'background': notification_colors['background']['checked' if is_checked else 'unchecked'],
-            'border': notification_colors['border']['checked' if is_checked else 'unchecked'],
-            'text': notification_colors['text']['checked' if is_checked else 'unchecked']
+            'background': notification_colors['background']['checked' if availability.prep_delete is None else 'unchecked'],
+            'border': notification_colors['border']['checked' if availability.prep_delete is None else 'unchecked'],
+            'text': notification_colors['text']['checked' if availability.prep_delete is None else 'unchecked']
         }
-        
-        # Lade auch die aktuellen ausgewählten Zeiten neu, um die Anzeige zu aktualisieren
-        selected_times = get_selected_times(user["id"])
-        selected_tod_ids = selected_times.get(date_str, [])
-        print(f"Aktualisierte Selected TOD IDs für {date_str}: {selected_tod_ids}")
         
         return templates.TemplateResponse(
             "time_of_day_selection_response.html",
@@ -625,7 +593,7 @@ async def select_time_of_day(request: Request):
                 "request": request,
                 "date_str": date_str,
                 "tod": tod,
-                "is_checked": is_checked,
+                "is_checked": availability.prep_delete is None,
                 "curr_notification_colors": curr_notification_colors,
             }
         )

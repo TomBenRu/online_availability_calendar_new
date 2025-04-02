@@ -1,5 +1,6 @@
-from pony.orm import db_session
+from pony.orm import db_session, flush
 
+from models import schemas
 from models.entities import PlanPeriod, EmployeePlanPeriod, Person, TimeOfDay, Availability
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Any
@@ -21,6 +22,14 @@ def get_plan_periods() -> List[Dict[str, Any]]:
         })
     
     return result
+
+
+@db_session
+def get_time_of_day(tod_id: str) -> schemas.TimeOfDayResponse:
+    """Holt eine Tageszeit aus der Datenbank und formatiert sie"""
+    tod = TimeOfDay.get(id=uuid.UUID(tod_id))
+    return schemas.TimeOfDayResponse.model_validate(tod)
+
 
 @db_session
 def get_time_of_day_options(user_id=None) -> List[Dict[str, Any]]:
@@ -287,8 +296,21 @@ def save_note(user_id, period_text, notes):
     return True
 
 @db_session
-def toggle_availability(user_id, date_str: str, tod_id):
-    """Schaltet die Verfügbarkeit für eine bestimmte Tageszeit an einem bestimmten Datum um"""
+def toggle_availability(user_id: str, date_str: str, tod_id: str) -> schemas.AvailabilityResponse:
+    """
+    Schaltet die Verfügbarkeit eines Benutzers für eine bestimmte Tageszeit an einem bestimmten Datum um.
+    
+    Wenn für die angegebene Kombination aus Benutzer, Datum und Tageszeit bereits eine aktive 
+    Verfügbarkeit existiert, wird diese deaktiviert. Andernfalls wird eine neue Verfügbarkeit erstellt.
+
+    Args:
+        user_id (str): Die UUID des Benutzers als String
+        date_str (str): Das Datum im Format "YYYY-MM-DD"
+        tod_id (str): Die UUID der Tageszeit (TimeOfDay) als String
+
+    Returns:
+        schemas.AvailabilityResponse]
+    """
     date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
     plan_period_db = (PlanPeriod.select()
                       .filter(lambda p: p.prep_delete is None)
@@ -311,16 +333,15 @@ def toggle_availability(user_id, date_str: str, tod_id):
     )
     if availability_db:
         availability_db.prep_delete = datetime.now()
-        return False, True  # Not checked, availability exists and was deactivated
     else:
-        new_availability = Availability(
+        availability_db = Availability(
             created_at=datetime.now(),
             latest_change=datetime.now(),
             time_of_day=time_of_day_db,
             employee_plan_period=employee_plan_period_db,
             date=date_obj
         )
-        return True, True  # Checked, and availability created
+    return schemas.AvailabilityResponse.model_validate(availability_db)
 
         
 @db_session
