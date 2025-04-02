@@ -21,18 +21,19 @@
     <div class="ml-4">
         <button type="button"
                 id="select-button-{{ tod.id }}"
-                data-hx-post="{{ url_for('select_time_of_day') }}"
-                data-hx-vals='{"date": "{{ date_str }}", "tod_id": "{{ tod.id }}"}'
-                data-hx-target="#tod-option-{{ tod.id }}"
-                data-hx-swap="outerHTML"
-                onclick="console.log('Button clicked for tod {{ tod.id }}'); manualPostRequest(this);"
-                data-date="{{ date_str }}"
+                hx-post="{{ url_for('select_time_of_day') }}"
+                hx-vals='{"date": "{{ date_str }}", "tod_id": "{{ tod.id }}"}'
+                hx-target="#tod-option-{{ tod.id }}"
+                hx-swap="outerHTML"
+                hx-trigger="click"
                 class="px-3 py-1 text-sm font-medium rounded-md
                       {% if is_checked %}
                       bg-{{ tod.color }} text-white hover:bg-{{ tod.color }}/80
                       {% else %}
                       bg-slate-700 text-slate-300 hover:bg-slate-600
-                      {% endif %}">
+                      {% endif %}"
+                hx-on::after-request="htmx.trigger('#day-indicators-{{ date_str }}', 'update')"
+                >
             {% if is_checked %}
             Ausgewählt
             {% else %}

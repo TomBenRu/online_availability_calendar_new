@@ -65,39 +65,6 @@
     <div id="modal-container" class="fixed inset-0 z-[200] flex items-center justify-center hidden"></div>
     
     <script>
-        // Funktion zum Aktualisieren der Tageszeitindikatoren
-        function updateDayIndicators(dateValue) {
-            const indicatorsUrl = '{{ url_for("update_day_indicators") }}';
-            const dateParam = new URLSearchParams();
-            dateParam.append('date', dateValue);
-            
-            fetch(indicatorsUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'HX-Request': 'true'
-                },
-                body: dateParam
-            })
-            .then(indResponse => indResponse.text())
-            .then(indHtml => {
-                console.log('Indicators response received, length:', indHtml.length);
-                const indTarget = document.querySelector(`#day-indicators-${dateValue}`);
-                if (indTarget) {
-                    console.log(`Found target #day-indicators-${dateValue}`);
-                    indTarget.innerHTML = indHtml;
-                    console.log('Updated day indicators, new content:', indHtml.trim());
-                } else {
-                    console.error('Day indicators target not found:', `#day-indicators-${dateValue}`);
-                    // Liste alle day-indicators-Elemente auf
-                    const allIndicators = document.querySelectorAll('[id^="day-indicators-"]');
-                    console.log('All indicator elements:', allIndicators.length);
-                    allIndicators.forEach(ind => console.log('  -', ind.id));
-                }
-            })
-            .catch(err => console.error('Error updating indicators:', err));
-        }
-        
         // Manuelle POST-Anfrage für Buttons
         function manualPostRequest(button) {
             // Verhindere das Standard-HTMX-Verhalten

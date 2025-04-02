@@ -6,11 +6,13 @@
     </div>
 
     <!-- Indicator Bereich mit ausgewählten Tageszeiten -->
-    <div id="day-indicators-{{ date.strftime('%Y-%m-%d') }}" class="p-1 flex flex-wrap justify-center gap-1 min-h-8">
+    <div id="day-indicators-{{ date.strftime('%Y-%m-%d') }}"
+         class="p-1 flex flex-wrap justify-center gap-1 min-h-8"
+         hx-trigger="update"
+         hx-post="{{ url_for('update_day_indicators') }}"
+         hx-vals='{"date": "{{ date.strftime('%Y-%m-%d') }}"}'
+         hx-swap="innerHTML">
         {% set date_str = date.strftime('%Y-%m-%d') %}
-        <!-- Debug-Kommentar für dieses Datum -->
-        {# date_str: {{ date_str }}, in selected_times: {{ date_str in selected_times }}, value: {{ selected_times.get(date_str, []) }} #}
-        
         {% if date_str in selected_times and selected_times[date_str] %}
             {% for tod_id in selected_times[date_str] %}
                 {% for option in time_of_day_options %}
