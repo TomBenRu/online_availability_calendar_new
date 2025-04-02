@@ -309,7 +309,6 @@ def toggle_availability(user_id, date_str: str, tod_id):
                   a.date == date_obj and
                   a.prep_delete is None
     )
-    print(f'Availability: {availability_db}')
     if availability_db:
         availability_db.prep_delete = datetime.now()
         return False, True  # Not checked, availability exists and was deactivated
