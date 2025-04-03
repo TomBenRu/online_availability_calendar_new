@@ -38,6 +38,10 @@
         </div>
     </div>
 
+    <!-- Trigger für die Aktualisierung der Indikatoren -->
+    <!-- Wird benötigt, damit bei jedem Swap die Event-Listener-Beziehung neu aufgebaut wird.-->
+    <!-- Es liegt außerhalb des Swap-Bereichs, -->
+    <!-- aber: Wenn dieses Element in der Antwort vorhanden ist, wird es bei jedem Swap neu initialisiert-->
     <div id="indicator-trigger-{{ tod.id }}"
          hx-post="{{ url_for('update_day_indicators') }}"
          hx-vals='{"date": "{{ date_str }}"}'
