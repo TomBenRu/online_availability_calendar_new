@@ -3,7 +3,7 @@
         <h2 class="text-xl font-bold text-slate-200">Tageszeiten für {{ date.strftime("%d.%m.%Y") }}</h2>
         <button type="button" 
                 class="text-gray-400 hover:text-white focus:outline-none" 
-                onclick="closeModal()">
+                 onclick="closeModal()">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -13,47 +13,59 @@
     <div class="space-y-3">
         {% for tod in time_of_day_options %}
             {% set is_selected = tod.id in selected_tod_ids %}
-            <div id="tod-option-{{ tod.id }}"
-                 class="p-2 border rounded-lg transition-colors flex items-center justify-between
-                       {% if is_selected %}
-                       bg-{{ tod.color }}/10 border-{{ tod.color }}
-                       {% else %}
-                       border-slate-700 bg-slate-800/60
-                       {% endif %}">
-                <div class="flex items-center space-x-3">
-                    <span class="w-3 h-3 rounded-full bg-{{ tod.color }}"></span>
-                    <span class="font-medium text-slate-200">{{ tod.name }}</span>
-                </div>
+            <!-- Wrapper div für beide Elemente -->
+            <div class="relative">
+                <!-- Das zu ersetzende Element -->
+                <div id="tod-option-{{ tod.id }}"
+                     class="p-2 border rounded-lg transition-colors flex items-center justify-between
+                           {% if is_selected %}
+                           bg-{{ tod.color }}/10 border-{{ tod.color }}
+                           {% else %}
+                           border-slate-700 bg-slate-800/60
+                           {% endif %}">
+                    <div class="flex items-center space-x-3">
+                        <span class="w-3 h-3 rounded-full bg-{{ tod.color }}"></span>
+                        <span class="font-medium text-slate-200">{{ tod.name }}</span>
+                    </div>
 
-                <div class="text-sm text-slate-400">
-                    {% if tod.start is string %}
-                        {{ tod.start }} - ...
-                    {% else %}
-                        {{ tod.start.strftime("%H:%M") }} - {{ (datetime.combine(date, tod.start) + tod.delta).time().strftime("%H:%M") }}
-                    {% endif %}
-                </div>
-
-                <div class="ml-4">
-                    <button type="button"
-                            id="select-button-{{ tod.id }}"
-                            data-hx-post="{{ url_for('select_time_of_day') }}"
-                            data-hx-vals='{"date": "{{ date_str }}", "tod_id": "{{ tod.id }}"}'
-                            data-hx-target="#tod-option-{{ tod.id }}"
-                            data-hx-swap="outerHTML"
-                            onclick="console.log('Button clicked for tod {{ tod.id }}'); manualPostRequest(this);"
-                            data-date="{{ date_str }}"
-                            class="px-3 py-1 text-sm font-medium rounded-md
-                                  {% if is_selected %}
-                                  bg-{{ tod.color }} text-white hover:bg-{{ tod.color }}/80
-                                  {% else %}
-                                  bg-slate-700 text-slate-300 hover:bg-slate-600
-                                  {% endif %}">
-                        {% if is_selected %}
-                        Ausgewählt
+                    <div class="text-sm text-slate-400">
+                        {% if tod.start is string %}
+                            {{ tod.start }} - ...
                         {% else %}
-                        Auswählen
+                            {{ tod.start.strftime("%H:%M") }} - {{ (datetime.combine(date, tod.start) + tod.delta).time().strftime("%H:%M") }}
                         {% endif %}
-                    </button>
+                    </div>
+
+                    <div class="ml-4">
+                        <button type="button"
+                                id="select-button-{{ tod.id }}"
+                                hx-post="{{ url_for('select_time_of_day') }}"
+                                hx-vals='{"date": "{{ date_str }}", "tod_id": "{{ tod.id }}"}'
+                                hx-target="#tod-option-{{ tod.id }}"
+                                hx-swap="outerHTML"
+                                class="px-3 py-1 text-sm font-medium rounded-md
+                                      {% if is_selected %}
+                                      bg-{{ tod.color }} text-white hover:bg-{{ tod.color }}/80
+                                      {% else %}
+                                      bg-slate-700 text-slate-300 hover:bg-slate-600
+                                      {% endif %}">
+                            {% if is_selected %}
+                            Ausgewählt
+                            {% else %}
+                            Auswählen
+                            {% endif %}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Indikatoren-Update Handler außerhalb des zu ersetzenden Elements -->
+                <div id="indicator-trigger-{{ tod.id }}"
+                     hx-post="{{ url_for('update_day_indicators') }}"
+                     hx-vals='{"date": "{{ date_str }}"}'
+                     hx-target="#day-indicators-{{ date_str }}"
+                     hx-trigger="htmx:afterRequest from:#select-button-{{ tod.id }}"
+                     hx-swap="innerHTML"
+                     class="hidden">
                 </div>
             </div>
         {% endfor %}
@@ -62,11 +74,7 @@
     <div class="mt-6 flex justify-end">
         <button type="button" 
                 class="px-4 py-2 bg-slate-700 text-slate-300 rounded-md hover:bg-slate-600 transition-colors"
-                hx-post="{{ url_for('update_day_indicators') }}" 
-                hx-vals='{"date": "{{ date_str }}"}'
-                hx-target="#day-indicators-{{ date_str }}"
-                hx-swap="innerHTML"
-                onclick="updateDayIndicators('{{ date_str }}'); setTimeout(function() { closeModal(); }, 100);">
+                onclick="closeModal()">
             Schließen
         </button>
     </div>

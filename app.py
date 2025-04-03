@@ -18,7 +18,7 @@ from models import entities
 from config.database import create_test_data
 from utils.db_helpers import (
     get_plan_periods, get_time_of_day_options, get_selected_times,
-    get_user_notes, save_note, toggle_availability, validate_login, get_time_of_day
+    get_user_notes, save_note, toggle_availability, validate_login, get_time_of_day, get_availability_user_date
 )
 
 # Lifespan-Kontext-Manager für Anwendungsstart und -ende
@@ -121,22 +121,7 @@ async def get_calendar_data(request: Request):
     plan_periods = get_plan_periods()
     time_of_day_options = get_time_of_day_options(user["id"])
     
-    # DEBUG: Zeige Farbinformationen
-    print("DEBUG: TimeOfDay Farben:")
-    for tod in time_of_day_options:
-        print(f"  - {tod['name']}: {tod['color']}")
-    
-    # Stelle sicher, dass EmployeePlanPeriods existieren
-    ensure_employee_plan_periods(user["id"])
-    
     selected_times = get_selected_times(user["id"])
-    print(f"DEBUG APP: selected_times nach get_selected_times: {selected_times}")
-    
-    # Debug: Überprüfe was in selected_times ist
-    if selected_times:
-        print(f"DEBUG APP: selected_times enthält {len(selected_times)} Einträge")
-        for key, values in selected_times.items():
-            print(f"DEBUG APP: Datum {key} (Typ: {type(key)}) hat {len(values)} Zeitslots: {values}")
             
     user_notes = get_user_notes(user["id"])
 
@@ -146,7 +131,6 @@ async def get_calendar_data(request: Request):
     period_deadlines = {}
     period_messages = {}  # Dictionary für die Mitteilungen
     period_first_month = {}  # Speichert den ersten Monat jeder Periode
-    sorted_periods = []
     
     for period in plan_periods:
         text_plan_periods = f'{period["start"].strftime("%d.%m.%y")} - {period["end"].strftime("%d.%m.%y")}'
@@ -233,9 +217,6 @@ async def get_calendar_content(request: Request):
     # Lade Daten aus der Datenbank
     plan_periods = get_plan_periods()
     time_of_day_options = get_time_of_day_options(user["id"])
-    
-    # Stelle sicher, dass EmployeePlanPeriods existieren
-    ensure_employee_plan_periods(user["id"])
     
     selected_times = get_selected_times(user["id"])
 
@@ -505,18 +486,10 @@ async def get_time_of_day_options_handler(request: Request):
         # Hole Daten aus der Datenbank
         time_options = get_time_of_day_options(user["id"])
         
-        # Stelle sicher, dass EmployeePlanPeriods existieren
-        ensure_employee_plan_periods(user["id"])
-        
         selected_times = get_selected_times(user["id"])
         
         # Hole ausgewählte Zeiten für dieses Datum
         selected_tod_ids = selected_times.get(date_str, [])
-        print(f"Lade Tageszeit-Modal für {date_str}, ausgewählte IDs: {selected_tod_ids}")
-        
-        for tod in time_options:
-            if tod['id'] in selected_tod_ids:
-                print(f"  - Vorausgewählt: {tod['name']} ({tod['id']})")
         
         return templates.TemplateResponse("time_of_day_selector.html", {
             "request": request,
@@ -624,6 +597,7 @@ async def update_day_indicators(request: Request):
     try:
         form = await request.form()
         date_str = form.get("date")
+        print(f"Updating day indicators for {date_str}")
         
         if not date_str:
             return templates.TemplateResponse(
@@ -652,7 +626,9 @@ async def update_day_indicators(request: Request):
         
         print(f"Selected TODs for {date_str}: {len(selected_tods)}")
         for tod in selected_tods:
-            print(f"  - {tod['name']} ({tod['id']})")
+            print(f"  - {tod}")
+
+        availabilities_on_date = get_availability_user_date(user["id"], date_str)
         
         return templates.TemplateResponse(
             "day_indicators.html",

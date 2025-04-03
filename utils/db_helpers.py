@@ -62,9 +62,7 @@ def get_time_of_day_options(user_id=None) -> List[Dict[str, Any]]:
         # Präferierte Farben: yellow-400, amber-500, red-500, blue-500, green-500, purple-500
         default_color = "gray-500"
         color = getattr(tod, 'color', default_color)
-        
-        # Debug: Zeige die Farbe
-        print(f"TimeOfDay {tod.name} hat Farbe: {color}")
+
         
         result.append({
             'id': str(tod.id),
@@ -83,48 +81,14 @@ def get_time_of_day_options(user_id=None) -> List[Dict[str, Any]]:
 @db_session
 def get_selected_times(user_id, period_id=None) -> Dict[str, List[str]]:
     """Holt die ausgewählten Zeiten eines Benutzers für alle oder eine bestimmte Periode"""
-    # Detailliertes Debug-Logging
-    print(f"\n--- START get_selected_times ---")
-    print(f"Argumente: user_id={user_id}, period_id={period_id if period_id else 'Alle'}")
     
     result = {}
     
     try:
-        # Überprüfen wir zuerst, ob andere Benutzer existieren
-        all_persons = list(Person.select())
-        print(f"Alle Benutzer in der Datenbank: {len(all_persons)}")
-        for i, person in enumerate(all_persons):
-            print(f"  - Benutzer {i+1}: id={person.id}, username={person.username}")
         
         # Überprüfe, ob der angegebene Benutzer existiert
         user_uuid = uuid.UUID(user_id)
-        person = Person.get(id=user_uuid)
-        if person:
-            print(f"Angegebener Benutzer gefunden: id={person.id}, username={person.username}")
-        else:
-            print(f"FEHLER: Angegebener Benutzer mit ID {user_id} nicht gefunden!")
-            return {}
-        
-        # Prüfe alle PlanPeriods
-        all_plan_periods = list(PlanPeriod.select())
-        print(f"Alle Planperioden in der Datenbank: {len(all_plan_periods)}")
-        for i, pp in enumerate(all_plan_periods):
-            print(f"  - Planperiode {i+1}: id={pp.id}, start={pp.start}, end={pp.end}")
-        
-        # Alle EmployeePlanPeriods in der Datenbank anzeigen
-        all_epps = list(EmployeePlanPeriod.select())
-        print(f"Alle EmployeePlanPeriods in der Datenbank: {len(all_epps)}")
-        for i, epp in enumerate(all_epps):
-            print(f"  - EPP {i+1}: id={epp.id}, person={epp.person.id}, plan_period={epp.plan_period.id}")
-        
-        # Alle Verfügbarkeiten anzeigen
-        all_avails = list(Availability.select())
-        print(f"Alle Verfügbarkeiten in der Datenbank: {len(all_avails)}")
-        for i, avail in enumerate(all_avails[:5]): # Nur die ersten 5 zum Debuggen
-            print(f"  - Verfügbarkeit {i+1}: id={avail.id}, EPP={avail.employee_plan_period.id}, TOD={avail.time_of_day.id}, date={avail.date if hasattr(avail, 'date') else 'None'}")
-        
-        # Alle EmployeePlanPeriods für den Benutzer abrufen
-        print(f"Suche EmployeePlanPeriods für Benutzer: {user_uuid}")
+
         
         if period_id:
             period_uuid = uuid.UUID(period_id)
@@ -140,13 +104,8 @@ def get_selected_times(user_id, period_id=None) -> Dict[str, List[str]]:
             )
         
         all_emp_periods = list(emp_periods)  # Konvertieren zu Liste für Zählung
-        print(f"Gefundene EmployeePlanPeriods: {len(all_emp_periods)}")
-        
+
         for i, emp_period in enumerate(all_emp_periods):
-            print(f"Verarbeite EmployeePlanPeriod {i+1}/{len(all_emp_periods)}: {emp_period.id}")
-            
-            plan_period = emp_period.plan_period
-            print(f"  - Planperiode: {plan_period.id}, {plan_period.start} bis {plan_period.end}")
             
             # Verfügbarkeiten für diese Periode abrufen
             availabilities = Availability.select(
@@ -155,66 +114,38 @@ def get_selected_times(user_id, period_id=None) -> Dict[str, List[str]]:
             )
             
             all_availabilities = list(availabilities)  # Konvertieren zu Liste für Zählung
-            print(f"  - Gefundene Verfügbarkeiten: {len(all_availabilities)}")
             
             # Verarbeite alle Verfügbarkeiten
             for j, avail in enumerate(all_availabilities):
                 try:
                     tod_id = str(avail.time_of_day.id)
-                    tod_name = avail.time_of_day.name
                     
                     # Verwende direkt das Datum aus dem Verfügbarkeitseintrag
                     if hasattr(avail, 'date') and avail.date is not None:
                         date_str = avail.date.strftime("%Y-%m-%d")
-                        print(f"    - Verfügbarkeit {j+1}/{len(all_availabilities)}: ID={avail.id}, TimeOfDay={tod_name}, Datum={date_str}")
                         
                         # Füge die Verfügbarkeit zum Ergebnis hinzu
                         if date_str not in result:
                             result[date_str] = []
                         if tod_id not in result[date_str]:
                             result[date_str].append(tod_id)
-                            print(f"      - Verfügbarkeit hinzugefügt für Datum {date_str}")
                     else:
                         print(f"    - Verfügbarkeit {j+1}/{len(all_availabilities)}: ID={avail.id} hat kein Datum")
                         
                 except Exception as e:
                     print(f"    - Fehler bei Verarbeitung von Verfügbarkeit {avail.id}: {str(e)}")
-    
-        # Debug-Log
-        total_dates = len(result)
-        total_times = sum(len(times) for times in result.values())
-        print(f"Ergebnis: {total_dates} Tage, {total_times} Zeiten insgesamt")
-        
-        # Zeige die ersten Ergebnisse
-        if total_dates > 0:
-            print("Beispiel-Einträge:")
-            for i, (date_str, tod_ids) in enumerate(result.items()):
-                if i >= 5:  # Maximal 5 Beispiele anzeigen
-                    break
-                print(f"  - {date_str}: {', '.join(tod_ids)}")
-                
-        # Debug: Prüfe, ob die Daten in einem für die Vorlage verständlichen Format vorliegen
-        for key, value in result.items():
-            print(f"DEBUG: Schlüssel {key} ist vom Typ {type(key)}, Wert ist vom Typ {type(value)} mit Länge {len(value)}")
-            if len(value) > 0:
-                print(f"DEBUG: Erster Wert: {value[0]} vom Typ {type(value[0])}")
                 
         # Stelle sicher, dass alle Schlüssel Strings sind (nicht datetime.date)
         string_result = {}
         for key, value in result.items():
             if not isinstance(key, str):
                 string_key = key.strftime('%Y-%m-%d') if hasattr(key, 'strftime') else str(key)
-                print(f"DEBUG: Konvertiere Schlüssel von {key} zu {string_key}")
                 string_result[string_key] = value
             else:
                 string_result[key] = value
-                
-        # Überprüfe das neue Format
-        print(f"DEBUG: Finales Format hat {len(string_result)} Tage")
         
         return string_result
     except Exception as e:
-        print(f"Fehler in get_selected_times: {str(e)}")
         return {}
     finally:
         print("--- END get_selected_times ---\n")
@@ -295,6 +226,20 @@ def save_note(user_id, period_text, notes):
     
     return True
 
+
+@db_session
+def get_availability_user_date(user_id: str, date_str: str) -> List[schemas.AvailabilityResponse]:
+    """Holt die Verfügbarkeit eines Benutzers für ein bestimmtes Datum"""
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+    user_uuid = uuid.UUID(user_id)
+    availabilities_db = Availability.select(
+        lambda a: a.employee_plan_period.person.id == user_uuid and
+                  a.date == date_obj and
+                  a.prep_delete is None
+    )
+    return [schemas.AvailabilityResponse.model_validate(a) for a in availabilities_db]
+
+
 @db_session
 def toggle_availability(user_id: str, date_str: str, tod_id: str) -> schemas.AvailabilityResponse:
     """
@@ -347,8 +292,6 @@ def toggle_availability(user_id: str, date_str: str, tod_id: str) -> schemas.Ava
 @db_session
 def validate_login(username, password):
     """Überprüft die Anmeldedaten des Benutzers"""
-    print(f"\n--- START validate_login ---")
-    print(f"Argumente: username={username}")
     
     try:
         # Umgehe den Generator-Ausdruck, der in Python 3.12 zu Problemen führt
@@ -363,18 +306,6 @@ def validate_login(username, password):
             break
         
         if user:
-            print(f"Benutzer gefunden: id={user.id}, username={user.username}")
-            
-            # Zeige alle EmployeePlanPeriods für den Benutzer
-            emp_plan_periods = list(EmployeePlanPeriod.select(lambda epp: epp.person.id == user.id and epp.prep_delete is None))
-            print(f"EmployeePlanPeriods für diesen Benutzer: {len(emp_plan_periods)}")
-            for i, epp in enumerate(emp_plan_periods):
-                print(f"  - {i+1}: id={epp.id}, plan_period={epp.plan_period.id}, start={epp.plan_period.start}, end={epp.plan_period.end}")
-                
-                # Verfügbarkeiten für diese EPP zeigen
-                availabilities = list(Availability.select(lambda a: a.employee_plan_period.id == epp.id and a.prep_delete is None))
-                print(f"    - Verfügbarkeiten: {len(availabilities)}")
-            
             return {
                 'id': str(user.id),
                 'username': user.username,

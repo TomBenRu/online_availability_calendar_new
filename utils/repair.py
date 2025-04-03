@@ -10,8 +10,6 @@ from models.entities import (
 @db_session
 def ensure_employee_plan_periods(user_id):
     """Stellt sicher, dass für den Benutzer Employee Plan Periods existieren"""
-    print(f"\n--- START ensure_employee_plan_periods ---")
-    print(f"Argumente: user_id={user_id}")
     
     try:
         # Benutzer suchen
