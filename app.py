@@ -559,12 +559,14 @@ async def select_time_of_day(request: Request):
             'border': notification_colors['border']['checked' if availability.prep_delete is None else 'unchecked'],
             'text': notification_colors['text']['checked' if availability.prep_delete is None else 'unchecked']
         }
-        
+        # Konvertiere date_str zu einem date-Objekt
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
         return templates.TemplateResponse(
             "time_of_day_selection_response.html",
             {
                 "request": request,
-                "date_str": date_str,
+                "date": date_obj,  # Übergebe das date-Objekt
+                "date_str": date_str,  # Behalte auch den String für andere Zwecke
                 "tod": tod,
                 "is_checked": availability.prep_delete is None,
                 "curr_notification_colors": curr_notification_colors,
@@ -610,25 +612,16 @@ async def update_day_indicators(request: Request):
             
         date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
         
-        # Hole Daten aus der Datenbank
-        time_options = get_time_of_day_options(user["id"])
-        selected_times = get_selected_times(user["id"])
-        
-        # Hole ausgewählte Zeiten für dieses Datum
-        selected_tod_ids = selected_times.get(date_str, [])
-        print(f"Selected TOD IDs for {date_str}: {selected_tod_ids}")
-        
-        # Finde die ausgewählten Tageszeiten mit vollständigen Daten
-        selected_tods = []
-        for tod in time_options:
-            if tod['id'] in selected_tod_ids:
-                selected_tods.append(tod)
-        
-        print(f"Selected TODs for {date_str}: {len(selected_tods)}")
-        for tod in selected_tods:
-            print(f"  - {tod}")
-
+        # Hole aktive Verfügbarkeiten für dieses Datum
         availabilities_on_date = get_availability_user_date(user["id"], date_str)
+        
+        # Hole die vollständigen TimeOfDay-Daten für die aktiven Verfügbarkeiten
+        selected_tods = []
+        for availability in availabilities_on_date:
+            print(f"{availability.time_of_day.name=}, {availability.prep_delete}")
+            tod = get_time_of_day(str(availability.time_of_day.id))
+            if tod:
+                selected_tods.append(tod)
         
         return templates.TemplateResponse(
             "day_indicators.html",

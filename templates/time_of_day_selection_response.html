@@ -11,11 +11,7 @@
     </div>
     
     <div class="text-sm text-slate-400">
-        {% if tod.start is string %}
-            {{ tod.start }} - ...
-        {% else %}
-            {{ tod.start.strftime("%H:%M") }} - {{ (datetime.combine(datetime.now().date(), tod.start) + tod.delta).time().strftime("%H:%M") }}
-        {% endif %}
+        {{ tod.start.strftime("%H:%M") }} - {{ (datetime.combine(datetime.now().date(), tod.start) + tod.delta).time().strftime("%H:%M") }}
     </div>
     
     <div class="ml-4">

@@ -1,10 +1,11 @@
+
 <div class="p-4 max-w-md w-full">
     <div class="flex justify-between items-center mb-4">
         <h2 class="text-xl font-bold text-slate-200">Tageszeiten für {{ date.strftime("%d.%m.%Y") }}</h2>
         <button type="button" 
                 class="text-gray-400 hover:text-white focus:outline-none" 
-                 onclick="closeModal()">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                onclick="closeModal()">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
         </button>
@@ -13,9 +14,7 @@
     <div class="space-y-3">
         {% for tod in time_of_day_options %}
             {% set is_selected = tod.id in selected_tod_ids %}
-            <!-- Wrapper div für beide Elemente -->
             <div class="relative">
-                <!-- Das zu ersetzende Element -->
                 <div id="tod-option-{{ tod.id }}"
                      class="p-2 border rounded-lg transition-colors flex items-center justify-between
                            {% if is_selected %}
@@ -43,6 +42,7 @@
                                 hx-vals='{"date": "{{ date_str }}", "tod_id": "{{ tod.id }}"}'
                                 hx-target="#tod-option-{{ tod.id }}"
                                 hx-swap="outerHTML"
+                                hx-trigger="click"
                                 class="px-3 py-1 text-sm font-medium rounded-md
                                       {% if is_selected %}
                                       bg-{{ tod.color }} text-white hover:bg-{{ tod.color }}/80
@@ -58,7 +58,6 @@
                     </div>
                 </div>
 
-                <!-- Indikatoren-Update Handler außerhalb des zu ersetzenden Elements -->
                 <div id="indicator-trigger-{{ tod.id }}"
                      hx-post="{{ url_for('update_day_indicators') }}"
                      hx-vals='{"date": "{{ date_str }}"}'

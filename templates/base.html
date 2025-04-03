@@ -62,7 +62,30 @@
 </head>
 <body x-data class="min-h-screen bg-slate-900" hx-ext="remove-me">
     <div id="notification-container" class="fixed top-20 right-4 z-[100]"></div>
-    <div id="modal-container" class="fixed inset-0 z-[200] flex items-center justify-center hidden"></div>
+    <!-- Modal Container -->
+    <div id="modal-container" 
+         class="fixed inset-0 z-[200] flex items-center justify-center hidden"
+         x-data="{ modalOpen: false, modalContent: '' }">
+        
+        <!-- Modal Backdrop -->
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+             x-show="modalOpen"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             @click="closeModal()">
+        </div>
+        
+        <!-- Modal Content -->
+        <div class="bg-slate-800 rounded-lg shadow-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto modal-animation relative"
+             x-show="modalOpen"
+             @click.outside="closeModal()">
+             <div x-html="modalContent"></div>
+        </div>
+    </div>
     
     <script>
         // Initialisiere HTMX Logging
@@ -94,103 +117,54 @@
             console.error('HTMX send error:', evt.detail);
         });
         
-        // Funktion, um HTMX im Modalen Inhalt zu verarbeiten
-        function processModal() {
-            console.log('Processing modal content');
-            
-            // Gib die komplette DOM-Struktur des Modals aus
-            const modalContainer = document.getElementById('modal-container');
-            const modalContent = modalContainer.querySelector('.p-4.max-w-md.w-full');
-            console.log('Modal HTML:', modalContainer.innerHTML);
-            console.log('Modal Content:', modalContent ? modalContent.innerHTML : 'not found');
-            
-            // Suche nach Buttons mit verschiedenen Selektoren
-            const buttonsHx = modalContainer.querySelectorAll('[hx-post]');
-            const buttonsDataHx = modalContainer.querySelectorAll('[data-hx-post]');
-            console.log('Buttons with hx-post:', buttonsHx.length);
-            console.log('Buttons with data-hx-post:', buttonsDataHx.length);
-            
-            if (modalContent) {
-                htmx.process(modalContent);
-            } else {
-                console.error('Modal content element not found');
-            }
+        // Debounce-Funktion zur Vermeidung mehrfacher Aufrufe
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
         }
-        
-        // Separate Funktion für die Verarbeitung von Buttons
-        function processButtons(buttons) {
-            if (!buttons || buttons.length === 0) {
-                console.log('Keine Buttons zum Verarbeiten gefunden.');
+
+        // Funktion, um HTMX im Modalen Inhalt zu verarbeiten
+        const processModal = debounce(() => {
+            console.log('Processing modal content (debounced)');
+            const modalContainer = document.getElementById('modal-container');
+            
+            if (!modalContainer) {
+                console.error('Modal container not found');
                 return;
             }
             
-            buttons.forEach((button, index) => {
-                console.log(`Button ${index}:`, button.outerHTML);
-                const postUrl = button.getAttribute('hx-post');
-                const vals = button.getAttribute('hx-vals');
-                const target = button.getAttribute('hx-target');
-                const swap = button.getAttribute('hx-swap');
-                
-                // Entferne bestehende Event-Listener
-                const newButton = button.cloneNode(true);
-                button.parentNode.replaceChild(newButton, button);
-                
-                // Füge neuen Event-Listener hinzu
-                newButton.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log(`Manual button click on button ${index}`);
-                    
-                    // Parse vals
-                    let valuesObj = {};
-                    try {
-                        if (vals) {
-                            valuesObj = JSON.parse(vals.replace(/'/g, '"'));
-                        }
-                    } catch (err) {
-                        console.error('Error parsing vals:', vals, err);
-                    }
-                    console.log('Parsed values:', valuesObj);
-                    
-                    // Manueller AJAX-Request
-                    fetch(postUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                            'HX-Request': 'true',
-                            'HX-Trigger': button.id || 'unknown',
-                            'HX-Target': target || '',
-                            'HX-Current-URL': window.location.href
-                        },
-                        body: new URLSearchParams(valuesObj)
-                    })
-                    .then(response => response.text())
-                    .then(html => {
-                        console.log('Received HTML response:', html);
-                        const targetElem = document.querySelector(target);
-                        if (targetElem) {
-                            if (swap === 'outerHTML') {
-                                targetElem.outerHTML = html;
-                            } else {
-                                targetElem.innerHTML = html;
-                            }
-                            
-                            // Verarbeite HTMX in der Antwort
-                            const parent = targetElem.parentNode;
-                            if (parent) {
-                                htmx.process(parent);
-                                processModal(); // Rekursiver Aufruf für neue Buttons
-                            }
-                            console.log('Processed response HTML');
-                        } else {
-                            console.error('Target element not found:', target);
-                        }
-                    })
-                    .catch(err => console.error('Error in manual fetch:', err));
+            const modalContent = modalContainer.querySelector('[x-html]');
+            if (!modalContent) {
+                console.error('Modal content container not found');
+                return;
+            }
+            
+            // Process HTMX elements in the modal content
+            const htmxElements = modalContent.querySelectorAll('[hx-post], [hx-get], [hx-trigger]');
+            console.log(`Found ${htmxElements.length} HTMX elements`);
+            
+            htmxElements.forEach(element => {
+                console.log('Processing HTMX element:', {
+                    id: element.id,
+                    hxPost: element.getAttribute('hx-post'),
+                    hxGet: element.getAttribute('hx-get'),
+                    hxTrigger: element.getAttribute('hx-trigger'),
+                    hxTarget: element.getAttribute('hx-target')
                 });
             });
-        }
-        
+            
+            // Process HTMX for the entire content
+            htmx.process(modalContent);
+            console.log('Modal processing complete');
+        }, 50);
+
         // Funktion, um Timer zu verwenden und auf Alpine.js Rendering zu warten
         function initModal() {
             setTimeout(processModal, 100);
@@ -214,63 +188,62 @@
             
             Alpine.store('modal', {
                 isOpen: false,
-                content: '',
                 
                 open(content) {
-                    this.content = content;
+                    const modalContainer = document.getElementById('modal-container');
+                    if (modalContainer) {
+                        modalContainer.classList.remove('hidden');
+                        document.body.classList.add('overflow-hidden');
+                    }
                     this.isOpen = true;
-                    document.getElementById('modal-container').classList.remove('hidden');
-                    document.body.classList.add('overflow-hidden');
-                    
-                    // HTMX im Modal initialisieren
-                    setTimeout(() => {
-                        htmx.process(document.getElementById('modal-container'));
-                    }, 10);
                 },
                 
                 close() {
+                    const modalContainer = document.getElementById('modal-container');
+                    if (modalContainer) {
+                        modalContainer.classList.add('hidden');
+                        document.body.classList.remove('overflow-hidden');
+                        // Optional: Clear content
+                        modalContainer.innerHTML = '';
+                    }
                     this.isOpen = false;
-                    this.content = '';
-                    document.getElementById('modal-container').classList.add('hidden');
-                    document.body.classList.remove('overflow-hidden');
                 }
             });
         });
         
         // Funktion zum Öffnen eines Modals mit HTMX-Inhalten
         function openModalWithHtmx(url, formData) {
-            const modalContainer = document.getElementById('modal-container');
+            console.log('Opening modal with HTMX:', { url, formData });
             
             fetch(url, {
                 method: 'POST',
-                body: formData
+                body: formData,
+                headers: {
+                    'HX-Request': 'true'
+                }
             })
             .then(response => response.text())
             .then(html => {
-                // Zuerst das Modal öffnen und HTML setzen
-                Alpine.store('modal').open(html);
+                console.log('Received modal content');
                 
-                // Warten bis das DOM aktualisiert wurde
-                setTimeout(() => {
-                    console.log('Verarbeite Modal nach Timeout');
-                    const modalContent = document.querySelector('.p-4.max-w-md.w-full');
-                    console.log('Modal Content gefunden:', modalContent ? 'ja' : 'nein');
-                    if (modalContent) {
-                        console.log('Modal HTML:', modalContent.innerHTML);
-                        htmx.process(modalContent);
-                        
-                        // Debug: Buttons überprüfen
-                        const buttons = modalContent.querySelectorAll('button[hx-post]');
-                        console.log('Gefundene Buttons:', buttons.length);
-                        buttons.forEach(btn => {
-                            console.log('Button Attribute:', {
-                                id: btn.id,
-                                post: btn.getAttribute('hx-post'),
-                                vals: btn.getAttribute('hx-vals')
-                            });
-                        });
-                    }
-                }, 100); // Längerer Timeout für sicheres Rendering
+                // Get the modal container
+                const modalContainer = document.getElementById('modal-container');
+                
+                if (modalContainer) {
+                    // Update Alpine.js data using global Alpine object
+                    Alpine.$data(modalContainer).modalContent = html;
+                    Alpine.$data(modalContainer).modalOpen = true;
+                    
+                    // Remove hidden class
+                    modalContainer.classList.remove('hidden');
+                    
+                    // Process HTMX after content is rendered
+                    setTimeout(() => {
+                        processModal();
+                    }, 50);
+                } else {
+                    console.error('Modal container not found');
+                }
             })
             .catch(error => {
                 console.error('Error loading modal content:', error);
@@ -279,67 +252,28 @@
         
         // Funktion zum Schließen des Modals
         function closeModal() {
-            try {
-                // Den Modal-Container leeren, um weitere Verarbeitungen zu vermeiden
-                const modalContainer = document.getElementById('modal-container');
-                if (modalContainer) {
-                    // Speichere den Inhalt vor dem Leeren, um ihn in die Console zu schreiben
-                    const oldContent = modalContainer.innerHTML;
-                    if (oldContent && oldContent.trim() !== '') {
-                        console.log('Schließe Modal und leere Inhalt.');
-                    }
-                    // Leere den Container
-                    modalContainer.innerHTML = '';
-                    modalContainer.classList.add('hidden');
-                }
+            const modalContainer = document.getElementById('modal-container');
+            if (modalContainer && window.Alpine) {
+                Alpine.evaluate(modalContainer, 'modalOpen = false');
+                modalContainer.classList.add('hidden');
                 
-                // Versuche zuerst, den Alpine.js Store zu verwenden
-                if (typeof Alpine !== 'undefined' && Alpine.store('modal')) {
-                    Alpine.store('modal').close();
-                } else {
-                    // Fallback
-                    const modalElement = document.querySelector('[x-data]');
-                    if (modalElement && modalElement.__x) {
-                        modalElement.__x.setData({ modalOpen: false, modalContent: '' });
+                // Clear content after animation
+                setTimeout(() => {
+                    const contentDiv = modalContainer.querySelector('[x-html]');
+                    if (contentDiv) {
+                        contentDiv.innerHTML = '';
                     }
-                }
-            } catch (error) {
-                console.error('Fehler beim Schließen des Modals:', error);
-                // Notfall-Fallback
-                document.getElementById('modal-container').classList.add('hidden');
+                }, 300);
             }
         }
         
         // Event-Listener für ESC-Taste zum Schließen des Modals
         document.addEventListener('keydown', function(e) {
-            const modalIsOpen = document.querySelector('[x-data]')?.__x?.getUnobservedData?.()?.modalOpen;
-            const storeIsOpen = typeof Alpine !== 'undefined' && Alpine.store('modal')?.isOpen;
-            
-            if (e.key === 'Escape' && (modalIsOpen || storeIsOpen)) {
+            if (e.key === 'Escape') {
                 closeModal();
             }
         });
     </script>
-    
-    <!-- Modal-Hintergrund mit click-away zum Schließen -->
-    <div x-data="{ modalOpen: false, modalContent: '' }" 
-         x-init="$watch('modalOpen', value => { if (value) { document.body.classList.add('overflow-hidden'); } else { document.body.classList.remove('overflow-hidden'); } })" 
-         x-show="modalOpen || $store?.modal?.isOpen" 
-         class="fixed inset-0 z-[200] bg-black bg-opacity-50 flex items-center justify-center"
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0"
-         @click.self="modalOpen ? modalOpen = false : (typeof closeModal === 'function' && closeModal())">
-        
-        <!-- Modal-Inhalt -->
-        <div class="bg-slate-800 rounded-lg shadow-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto modal-animation relative"
-             @click.outside="modalOpen ? modalOpen = false : (typeof closeModal === 'function' && closeModal())">
-             <div x-html="modalContent || ($store?.modal?.content || '')"></div>
-        </div>
-    </div>
     
     {% block content %}{% endblock %}
 

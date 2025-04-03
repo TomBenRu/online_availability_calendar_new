@@ -9,6 +9,7 @@ class EntityBase(BaseModel):
     """Basisklasse für alle Entities mit gemeinsamen Feldern"""
     model_config = ConfigDict(from_attributes=True)
 
+    id: UUID
     created_at: datetime.datetime
     latest_change: datetime.datetime
     prep_delete: Optional[datetime.datetime] = None
@@ -26,13 +27,8 @@ class AvailabilityCreate(BaseModel):
     date: datetime.date
 
 class AvailabilityResponse(AvailabilityBase):
-    id: UUID
     time_of_day: "TimeOfDayBase"
     employee_plan_period: "EmployeePlanPeriodBase"
-
-    @field_validator("time_of_day", "employee_plan_period")
-    def set_to_dict(cls, v):
-        return [v for v in v]
 
 
 # TimeOfDay Schemas
@@ -52,7 +48,6 @@ class TimeOfDayCreate(BaseModel):
     person_id: UUID
 
 class TimeOfDayResponse(TimeOfDayBase):
-    id: UUID
     person: "PersonBase"
     availabilities: List[AvailabilityBase]
 
@@ -78,7 +73,6 @@ class PersonCreate(BaseModel):
     password: str
 
 class PersonResponse(PersonBase):
-    id: UUID
     team: Optional["TeamBase"] = None
     time_of_days: List[TimeOfDayBase]
     teams_of_dispatcher: List["TeamBase"]
@@ -100,7 +94,6 @@ class ProjectCreate(BaseModel):
     admin_id: UUID
 
 class ProjectResponse(ProjectBase):
-    id: UUID
     admin: PersonBase
     teams: List["TeamBase"]
 
@@ -119,7 +112,6 @@ class TeamCreate(BaseModel):
     project_id: UUID
 
 class TeamResponse(TeamBase):
-    id: UUID
     persons: List[PersonBase]
     plan_periods: List["PlanPeriodBase"]
     dispatcher: PersonBase
@@ -145,7 +137,6 @@ class PlanPeriodCreate(BaseModel):
     team_id: UUID
 
 class PlanPeriodResponse(PlanPeriodBase):
-    id: UUID
     team: TeamBase
     employee_plan_periods: List["EmployeePlanPeriodBase"]
     apscheduler_job: Optional["APSchedulerJobBase"] = None
@@ -165,7 +156,6 @@ class EmployeePlanPeriodCreate(BaseModel):
     person_id: UUID
 
 class EmployeePlanPeriodResponse(EmployeePlanPeriodBase):
-    id: UUID
     plan_period: PlanPeriodBase
     person: PersonBase
     availabilities: List[AvailabilityBase]
@@ -198,5 +188,4 @@ class APSchedulerJobCreate(BaseModel):
     plan_period_id: UUID
 
 class APSchedulerJobResponse(APSchedulerJobBase):
-    id: UUID
     plan_period: PlanPeriodBase
